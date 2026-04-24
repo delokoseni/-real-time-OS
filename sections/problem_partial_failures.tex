@@ -1,0 +1,21 @@
+\begin{frame}{Проблема 5: частичные и неоднозначные сбои}
+	\begin{itemize}
+		\item Для fault-tolerant RTOS недостаточно учитывать только fail-stop.
+		\item После сбоя узлы могут иметь неактуальное представление о состоянии друг друга.
+		\item Для группы вычислителей нужны:
+		\begin{itemize}
+			\item heartbeat;
+			\item local view;
+			\item suspicion level;
+			\item majority voting;
+			\item controlled rejoin после recovery.
+		\end{itemize}
+	\end{itemize}
+	
+	\vspace{0.3cm}
+	
+	\begin{block}{Роль опорной статьи}
+		В статье imperfect knowledge рассматривается как важная часть recovery-модели.
+		Это делает её особенно полезной для fault-tolerant RTOS.
+	\end{block}
+\end{frame}

@@ -1,0 +1,14 @@
+	\begin{frame}{Проблема 1: нет целостной модели health monitoring}
+	
+	Fault-management присутствует фрагментарно, но не как единый слой управления жизненным циклом компонентов.
+	
+	\begin{block}{Что даёт BEAM}
+		В OTP supervision tree:
+		\begin{itemize}
+			\item workers выполняют работу;
+			\item supervisors отслеживают workers;
+			\item supervisor перезапускает дочерний компонент по заданной политике;
+			\item стратегия рестарта задаётся явно.
+		\end{itemize}
+	\end{block}
+\end{frame}

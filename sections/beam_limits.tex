@@ -1,0 +1,20 @@
+\begin{frame}{Границы применимости BEAM}
+	\begin{block}{Что не предлагается}
+		\begin{itemize}
+			\item не предлагается заменить hard real-time scheduler на BEAM;
+			\item не предлагается переносить весь runtime Erlang внутрь POK.
+		\end{itemize}
+	\end{block}
+	
+	\begin{block}{Что предлагается}
+		Использовать принципы BEAM только в control plane отказоустойчивости:
+		\begin{itemize}
+			\item supervision;
+			\item fault-events;
+			\item bounded restart;
+			\item degraded mode;
+			\item controlled recovery;
+			\item reincarnation after restart.
+		\end{itemize}
+	\end{block}
+\end{frame}

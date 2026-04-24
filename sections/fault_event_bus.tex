@@ -1,0 +1,22 @@
+\begin{frame}[fragile]{Схематичный fault-event bus на C}
+	\begin{lstlisting}[language=C]
+		typedef struct {
+			unsigned kind;
+			unsigned partition;
+			unsigned thread;
+			unsigned addr;
+		} fault_event_t;
+		
+		void fault_publish(fault_event_t ev) {
+			queue_push(&fault_bus, &ev);
+		}
+	\end{lstlisting}
+	
+	\vspace{0.2cm}
+	
+	\begin{block}{Смысл}
+		Ошибка становится не локальной процедурной веткой, а событием,
+		которое может быть обработано несколькими подсистемами:
+		supervisor, logger, safe-mode handler.
+	\end{block}
+\end{frame}

@@ -1,0 +1,13 @@
+\begin{frame}{Проблема 3: restart без clean recovery}
+	\begin{itemize}
+		\item В \texttt{pok\_partition\_reinit()} прямо отмечено, что queueing/sampling ports нужно дополнительно сбрасывать.
+		\item Следовательно, после восстановления возможно смешение старого и нового IPC-состояния.
+		\item В RTOS это опасно, поскольку старые сообщения могут перейти в новую фазу работы.
+	\end{itemize}
+	
+	\vspace{0.3cm}
+	
+	\begin{block}{Что даёт статья 2023 года}
+		Использование incarnation numbers позволяет отличать старую инкарнацию узла от новой и безопасно отбрасывать устаревшие сообщения.
+	\end{block}
+\end{frame}

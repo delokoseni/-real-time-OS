@@ -1,0 +1,20 @@
+\begin{frame}[fragile]{Схематичный перенос incarnation numbers}
+	\begin{lstlisting}[language=C]
+		typedef struct {
+			unsigned epoch;
+			unsigned msg_type;
+			unsigned char payload[32];
+		} msg_t;
+		
+		int accept_msg(msg_t* m, unsigned current_epoch) {
+			return m->epoch == current_epoch;
+		}
+	\end{lstlisting}
+	
+	\vspace{0.2cm}
+	
+	\begin{block}{Смысл}
+		После restart увеличивается epoch.
+		Старые сообщения не проходят проверку и не загрязняют новое состояние partition.
+	\end{block}
+\end{frame}

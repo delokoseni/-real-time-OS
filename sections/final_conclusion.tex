@@ -1,0 +1,15 @@
+\begin{frame}{Вывод}
+	\begin{itemize}
+		\item Кодовая база POK уже показывает необходимость развития fault-management слоя.
+		\item Опорная статья 2023 года даёт формальную модель Erlang-style recovery.
+		\item Наиболее переносимы из BEAM:
+		\begin{itemize}
+			\item супервизия;
+			\item событийная обработка отказов;
+			\item restart from known state;
+			\item incarnation numbers;
+			\item ownership-ориентированная организация состояния.
+		\end{itemize}
+		\item Следовательно, наиболее реалистичный путь --- построение Erlang-style recovery layer поверх существующего кода POK на C.
+	\end{itemize}
+\end{frame}

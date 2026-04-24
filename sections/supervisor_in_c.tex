@@ -1,0 +1,24 @@
+\begin{frame}[fragile]{Схематичный перенос идеи supervisor на C}
+	\begin{lstlisting}[language=C]
+		typedef struct {
+			int id;
+			int restart_count;
+			int max_restarts;
+			int state;
+		} child_t;
+		
+		void supervisor_on_fault(child_t* c) {
+			if (c->restart_count < c->max_restarts) {
+				restart_child(c->id);
+				c->restart_count++;
+			} else {
+				set_degraded_mode(c->id);
+			}
+		}
+	\end{lstlisting}
+	
+	\vspace{0.2cm}
+	
+	Идея заключается не в переносе Erlang runtime, а в переносе политики:
+	отказ наблюдается извне и обрабатывается по заранее заданным правилам.
+\end{frame}

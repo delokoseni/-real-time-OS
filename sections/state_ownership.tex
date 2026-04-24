@@ -1,0 +1,13 @@
+\begin{frame}{Как адаптировать принцип ownership к POK}
+	\begin{itemize}
+		\item Не требуется убирать все глобальные структуры.
+		\item Требуется переразделить ответственность между подсистемами:
+		\begin{itemize}
+			\item scheduler owns scheduling state;
+			\item IPC manager owns IPC state;
+			\item supervisor owns lifecycle state;
+			\item error manager owns fault state.
+		\end{itemize}
+		\item Такой подход можно рассматривать как actor-like discipline поверх уже существующей C-реализации.
+	\end{itemize}
+\end{frame}
