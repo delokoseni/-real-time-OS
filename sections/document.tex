@@ -1,0 +1,345 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[T2A]{fontenc} % Без этого с компилятором pdflatex не работает
+\usepackage[utf8]{inputenc} % Без этого с компилятором pdflatex не работает
+\usepackage[russian]{babel} % Без этого с компилятором pdflatex не работает
+\usepackage{graphicx} % Для вставки изображений
+\usepackage{listings}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{%
+	\leavevmode%
+	\hbox{%
+		\begin{beamercolorbox}[wd=.6\paperwidth,ht=2.5ex,dp=1ex,left]{palette primary}%
+			\hspace{0.5em}Студенты АлтГТУ, группа 8 ПИ-51
+		\end{beamercolorbox}%
+		\begin{beamercolorbox}[wd=.4\paperwidth,ht=2.5ex,dp=1ex,right]{palette primary}%
+			\insertshortdate\hspace{1em}\insertframenumber/\inserttotalframenumber\hspace{0.5em}
+		\end{beamercolorbox}%
+	}%
+	\vskip0pt%
+}
+
+\lstset{
+	basicstyle=\ttfamily\scriptsize,
+	breaklines=true,
+	frame=single,
+	showstringspaces=false
+}
+
+\title{Оценка реализации устойчивой к сбоям real-time OS}
+\subtitle{Применение принципов отказоустойчивости BEAM к существующей реализации POK на C}
+
+\author{
+	Студенты АлтГТУ, группа 8 ПИ-51\\
+	Бельш А.Е.\\
+	Воробьев К.В.\\
+	Мэн Ч.\\
+	Ошурков Н.А.
+}
+
+\date{2026 г.}
+
+\begin{document}
+	
+	% -------------------------------------------------
+	\begin{frame}{Постановка задачи}
+		\begin{block}{Основная идея}
+			В работе BEAM рассматривается не как замена RTOS и не как новый runtime, а как источник архитектурных принципов отказоустойчивости.
+		\end{block}
+		
+		\vspace{0.3cm}
+		
+		\begin{itemize}
+			\item Базовая реализация POK уже существует на C.
+			\item Задача состоит в том, чтобы определить, какие принципы BEAM можно наложить на существующий код.
+			\item Основной акцент делается на:
+			\begin{itemize}
+				\item супервизии;
+				\item обработке fault-events;
+				\item restart from known state;
+				\item разграничении инкарнаций после восстановления.
+			\end{itemize}
+		\end{itemize}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Основной научный источник}
+		\begin{block}{Inria Research Report No. 9511, 2023}
+			Giovanni Fabbretti, Ivan Lanese, Jean-Bernard Stefani\\
+			\textit{A Behavioral Theory For Crash Failures and Erlang-style Recoveries In Distributed Systems}	
+		\end{block}
+		
+		\begin{itemize}
+			\item В статье рассматриваются crash failures и recovery в распределённых системах.
+			\item Авторы вводят модель, близкую к Erlang-style recovery.
+			\item Важные для нашей темы свойства:
+			\begin{itemize}
+				\item asynchronous communication;
+				\item dynamic nodes and links;
+				\item crash failures with recovery;
+				\item imperfect knowledge;
+				\item incarnation numbers.
+			\end{itemize}
+		\end{itemize}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Что видно в кодовой базе POK}
+		\begin{itemize}
+			\item В проекте отдельно отмечены незавершённые части fault-management.
+			\item В \texttt{error.c} обработка ошибки по умолчанию не образует полноценного механизма восстановления.
+			\item В \texttt{partition.c} восстановление partition помечено как неполное.
+			\item В \texttt{sched.c} модель планирования остаётся ограниченной.
+		\end{itemize}
+		
+		\vspace{0.3cm}	
+			Проблема состоит не в отсутствии базовой RTOS-функциональности, а в неполной архитектурной оформленности fault-management слоя.
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}[fragile]{Симптомы в репозитории POK}
+		\begin{lstlisting}
+			KERNEL
+			- Implement the health monitor that is near of the ARINC653 definition
+			- Implement FIFO scheduler
+			- Implement queueing discipline
+			
+			LIBPOK
+			- Implement fault callback function
+		\end{lstlisting}
+		
+		\vspace{0.3cm}
+		
+		\begin{itemize}
+			\item Сам репозиторий показывает необходимость доработки мониторинга и обработки отказов.
+			\item Следовательно, развитие fault tolerance для POK обосновано и по состоянию кода.
+		\end{itemize}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Проблема 1: нет целостной модели health monitoring}
+
+			Fault-management присутствует фрагментарно, но не как единый слой управления жизненным циклом компонентов.
+		
+		\begin{block}{Что даёт BEAM}
+			В OTP supervision tree:
+			\begin{itemize}
+				\item workers выполняют работу;
+				\item supervisors отслеживают workers;
+				\item supervisor перезапускает дочерний компонент по заданной политике;
+				\item стратегия рестарта задаётся явно.
+			\end{itemize}
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}[fragile]{Схематичный перенос идеи supervisor на C}
+		\begin{lstlisting}[language=C]
+			typedef struct {
+				int id;
+				int restart_count;
+				int max_restarts;
+				int state;
+			} child_t;
+			
+			void supervisor_on_fault(child_t* c) {
+				if (c->restart_count < c->max_restarts) {
+					restart_child(c->id);
+					c->restart_count++;
+				} else {
+					set_degraded_mode(c->id);
+				}
+			}
+		\end{lstlisting}
+		
+		\vspace{0.2cm}
+		
+			Идея заключается не в переносе Erlang runtime, а в переносе политики:
+			отказ наблюдается извне и обрабатывается по заранее заданным правилам.
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Проблема 2: ошибка фиксируется, но не становится архитектурным событием}
+		\begin{itemize}
+			\item В \texttt{error.c} ошибка может приводить к warning, fatal или возврату.
+			\item Однако сама ошибка не всегда превращается в полноценный fault-event.
+			\item Это затрудняет отделение обнаружения отказа от решения о восстановлении.
+		\end{itemize}
+		
+		\vspace{0.3cm}
+		
+		\begin{block}{Что даёт BEAM}
+			В Erlang отказ становится наблюдаемым через сигналы и сообщения, а логика восстановления переносится во внешний supervisory слой.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}[fragile]{Схематичный fault-event bus на C}
+		\begin{lstlisting}[language=C]
+			typedef struct {
+				unsigned kind;
+				unsigned partition;
+				unsigned thread;
+				unsigned addr;
+			} fault_event_t;
+			
+			void fault_publish(fault_event_t ev) {
+				queue_push(&fault_bus, &ev);
+			}
+		\end{lstlisting}
+		
+		\vspace{0.2cm}
+		
+		\begin{block}{Смысл}
+			Ошибка становится не локальной процедурной веткой, а событием,
+			которое может быть обработано несколькими подсистемами:
+			supervisor, logger, safe-mode handler.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Проблема 3: restart без clean recovery}
+		\begin{itemize}
+			\item В \texttt{pok\_partition\_reinit()} прямо отмечено, что queueing/sampling ports нужно дополнительно сбрасывать.
+			\item Следовательно, после восстановления возможно смешение старого и нового IPC-состояния.
+			\item В RTOS это опасно, поскольку старые сообщения могут перейти в новую фазу работы.
+		\end{itemize}
+		
+		\vspace{0.3cm}
+		
+		\begin{block}{Что даёт статья 2023 года}
+			Использование incarnation numbers позволяет отличать старую инкарнацию узла от новой и безопасно отбрасывать устаревшие сообщения.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}[fragile]{Схематичный перенос incarnation numbers}
+		\begin{lstlisting}[language=C]
+			typedef struct {
+				unsigned epoch;
+				unsigned msg_type;
+				unsigned char payload[32];
+			} msg_t;
+			
+			int accept_msg(msg_t* m, unsigned current_epoch) {
+				return m->epoch == current_epoch;
+			}
+		\end{lstlisting}
+		
+		\vspace{0.2cm}
+		
+		\begin{block}{Смысл}
+			После restart увеличивается epoch.
+			Старые сообщения не проходят проверку и не загрязняют новое состояние partition.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Проблема 4: слишком много общего состояния}
+		\begin{itemize}
+			\item В POK активно используются глобальные структуры partition- и scheduler-уровня.
+			\item Для RTOS это естественно, но усложняет локализацию отказов и частичный restart.
+			\item Сильная связанность приводит к тому, что сбой одного компонента затрагивает больше контекста, чем хотелось бы.
+		\end{itemize}
+		
+		\vspace{0.3cm}
+		
+		\begin{block}{Что даёт BEAM}
+			BEAM опирается на ownership состояния и взаимодействие через сообщения.
+			Это уменьшает связанность между компонентами и упрощает восстановление.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Как адаптировать принцип ownership к POK}
+		\begin{itemize}
+			\item Не требуется убирать все глобальные структуры.
+			\item Требуется переразделить ответственность между подсистемами:
+			\begin{itemize}
+				\item scheduler owns scheduling state;
+				\item IPC manager owns IPC state;
+				\item supervisor owns lifecycle state;
+				\item error manager owns fault state.
+			\end{itemize}
+			\item Такой подход можно рассматривать как actor-like discipline поверх уже существующей C-реализации.
+		\end{itemize}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Проблема 5: частичные и неоднозначные сбои}
+		\begin{itemize}
+			\item Для fault-tolerant RTOS недостаточно учитывать только fail-stop.
+			\item После сбоя узлы могут иметь неактуальное представление о состоянии друг друга.
+			\item Для группы вычислителей нужны:
+			\begin{itemize}
+				\item heartbeat;
+				\item local view;
+				\item suspicion level;
+				\item majority voting;
+				\item controlled rejoin после recovery.
+			\end{itemize}
+		\end{itemize}
+		
+		\vspace{0.3cm}
+		
+		\begin{block}{Роль опорной статьи}
+			В статье imperfect knowledge рассматривается как важная часть recovery-модели.
+			Это делает её особенно полезной для fault-tolerant RTOS.
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Границы применимости BEAM}
+		\begin{block}{Что не предлагается}
+			\begin{itemize}
+				\item не предлагается заменить hard real-time scheduler на BEAM;
+				\item не предлагается переносить весь runtime Erlang внутрь POK.
+			\end{itemize}
+		\end{block}
+		
+		\begin{block}{Что предлагается}
+			Использовать принципы BEAM только в control plane отказоустойчивости:
+			\begin{itemize}
+				\item supervision;
+				\item fault-events;
+				\item bounded restart;
+				\item degraded mode;
+				\item controlled recovery;
+				\item reincarnation after restart.
+			\end{itemize}
+		\end{block}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Итоговое предложение для POK}
+		\begin{enumerate}
+			\item Ввести supervisor layer поверх thread/partition механизмов.
+			\item Перейти от callbacks к fault-event bus.
+			\item Использовать incarnation numbers для partition и IPC.
+			\item Переразделить ownership состояния между подсистемами.
+			\item Для группы узлов использовать heartbeat, local view и voting.
+			\item Реализовать Erlang-style recovery layer поверх существующего C-кода.
+		\end{enumerate}
+	\end{frame}
+	
+	% -------------------------------------------------
+	\begin{frame}{Вывод}
+		\begin{itemize}
+			\item Кодовая база POK уже показывает необходимость развития fault-management слоя.
+			\item Опорная статья 2023 года даёт формальную модель Erlang-style recovery.
+			\item Наиболее переносимы из BEAM:
+			\begin{itemize}
+				\item супервизия;
+				\item событийная обработка отказов;
+				\item restart from known state;
+				\item incarnation numbers;
+				\item ownership-ориентированная организация состояния.
+			\end{itemize}
+			\item Следовательно, наиболее реалистичный путь --- построение Erlang-style recovery layer поверх существующего кода POK на C.
+		\end{itemize}
+	\end{frame}
+
+	
+\end{document}
