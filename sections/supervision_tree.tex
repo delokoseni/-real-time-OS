@@ -1,0 +1,20 @@
+\begin{frame}{Дерево надзора (Supervision Tree)}
+	\begin{flushleft}
+		\textbf{Идея:} система строится как дерево процессов, где часть процессов контролирует другие.
+	\end{flushleft}
+	\vspace{0.8em}
+	\centering
+	\begin{tabular}{|c|c|c|}
+		\hline
+		\textbf{Тип процесса} & \textbf{Функция} & \textbf{Поведение при сбое} \\
+		\hline
+		Worker & Выполняет задачу & Перезапускается supervisor’ом \\
+		\hline
+		Supervisor & Контролирует worker’ов & Перезапускает процессы \\
+		\hline
+	\end{tabular}
+	\vspace{1em}
+	\begin{flushleft}
+		\textbf{Свойство:} система самовосстанавливается за счёт перезапуска упавших процессов.
+	\end{flushleft}
+\end{frame}
