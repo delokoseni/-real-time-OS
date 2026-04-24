@@ -1,0 +1,120 @@
+\begin{document}
+
+\begin{frame}{Цель работы}
+\begin{itemize}
+    \item Использование языка C в RTOS;
+    \item Реализация на базе POK kernel;
+    \item Обеспечение автоматического восстановления задач;
+\end{itemize}
+\vspace{0.8em}
+\textbf{Основной процесс:} обнаружение сбоя $\rightarrow$ перезапуск задачи.
+\end{frame}
+
+\begin{frame}{Реализация: общая идея}
+\begin{itemize}
+    \item Во время выполнения задача может зависнуть или завершиться с ошибкой;
+    \item Система должна отслеживать состояние задач;
+    \item При обнаружении сбоя запускается механизм восстановления;
+    \item Восстанавливается только сбойная задача.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Механизм контроля и перезапуска}
+\begin{verbatim}
+void supervisor() {
+    for (int i = 0; i < TASK_NUM; i++) {
+        if (tasks[i].status == FAILED) {
+            restart_task(tasks[i].id);
+        }
+    }
+}
+\end{verbatim}
+
+\vspace{0.5em}
+\textbf{Описание:}
+\begin{itemize}
+    \item Периодическая проверка состояния задач;
+    \item Обнаружение сбоя;
+    \item Перезапуск только одной задачи;
+    \item Остальная система продолжает работу.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Метод 1: Heartbeat}
+\begin{verbatim}
+while (1) {
+    if (recv_heartbeat(pid) == OK)
+        update_timestamp(pid);
+    if (now - last_seen(pid) > TIMEOUT) {
+        pok_proc_create(&attr, &pid);
+    }
+}
+\end{verbatim}
+
+\vspace{0.5em}
+\begin{itemize}
+    \item Контроль активности задачи через heartbeat;
+    \item Тайм-аут $\rightarrow$ задача считается отказавшей;
+    \item Выполняется перезапуск.
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Плюсы:} простота, не требует изменения ядра  
+\textbf{Минусы:} задержка обнаружения
+\end{frame}
+
+\begin{frame}[fragile]{Метод 2: Error Hook}
+\begin{verbatim}
+pok_error_hook(my_hook);
+
+void my_hook(pid) {
+    send(supervisor, pid);
+}
+\end{verbatim}
+
+\vspace{0.5em}
+\begin{itemize}
+    \item Срабатывает при ошибке задачи;
+    \item Уведомляет механизм контроля;
+    \item Выполняется восстановление.
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Плюсы:} высокая скорость реакции  
+\textbf{Минусы:} зависит от поддержки системы
+\end{frame}
+
+\begin{frame}[fragile]{Метод 3: Link-механизм (ядро)}
+\begin{verbatim}
+pok_sys_link(pid);
+\end{verbatim}
+
+\vspace{0.5em}
+\begin{itemize}
+    \item Ядро хранит связи между задачами;
+    \item При завершении задачи отправляется сигнал;
+    \item Выполняется автоматическое восстановление.
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Плюсы:} максимальная скорость реакции  
+\textbf{Минусы:} требуется модификация ядра
+\end{frame}
+
+\begin{frame}{Сравнение методов}
+\begin{center}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Метод} & \textbf{Сложность} & \textbf{Реакция} & \textbf{Изменение ядра} \\
+\hline
+Heartbeat & низкая & средняя (мс) & нет \\
+\hline
+Error Hook & средняя & высокая (мкс) & зависит \\
+\hline
+Link & высокая & мгновенная & да \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{0.8em}
+\end{frame}
