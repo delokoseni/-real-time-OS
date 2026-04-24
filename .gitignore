@@ -1,0 +1,17 @@
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+*.pdf
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
